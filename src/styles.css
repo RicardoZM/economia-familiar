@@ -111,6 +111,25 @@ small {
     cursor: pointer
 }
 
+.secondary,
+.text-button {
+    border: 0;
+    background: transparent;
+    color: #08716b;
+    padding: 6px;
+    font: inherit;
+    cursor: pointer
+}
+
+.secondary {
+    border: 1px solid #cbd8d5;
+    border-radius: 8px
+}
+
+.danger {
+    color: #a53d2e
+}
+
 .grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -151,6 +170,13 @@ small {
     margin-bottom: 18px
 }
 
+.panel-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start
+}
+
 .row {
     display: flex;
     align-items: center;
@@ -166,6 +192,19 @@ small {
 .row span {
     display: flex;
     flex-direction: column;
+    gap: 4px
+}
+
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: right
+}
+
+.row-actions span {
+    display: flex;
+    flex-direction: row;
     gap: 4px
 }
 
@@ -194,6 +233,47 @@ select {
 
 .form .primary {
     margin-top: 4px
+}
+
+.filters {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 10px
+}
+
+.category-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px auto;
+    gap: 10px;
+    align-items: start
+}
+
+.category-list {
+    margin-top: 16px;
+    border-top: 1px solid #edf2f0
+}
+
+.category {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #edf2f0
+}
+
+.category span {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+.category i {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%
 }
 
 .auth {
@@ -266,6 +346,22 @@ select {
 
     .fields {
         grid-template-columns: 1fr
+    }
+
+    .filters,
+    .category-form {
+        grid-template-columns: 1fr
+    }
+
+    .row {
+        align-items: flex-start;
+        gap: 12px
+    }
+
+    .row-actions {
+        align-items: flex-end;
+        flex-direction: column;
+        gap: 4px
     }
 
     .primary {

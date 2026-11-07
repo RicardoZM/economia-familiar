@@ -1,7 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { offlineDb, queueTransaction } from "./offline";
 import { supabase } from "./supabase";
-import type { Household, Transaction } from "../types";
+import type { Category, Household, Transaction } from "../types";
 
 export async function loadMyHousehold(): Promise<Household | null> {
   if (!supabase) return null;
@@ -31,6 +31,51 @@ export async function fetchTransactions(
   await offlineDb.transactions.bulkPut(data);
   return data;
 }
+
+export async function fetchCategories(householdId: string): Promise<Category[]> {
+  if (!navigator.onLine || !supabase)
+    return offlineDb.categories
+      .where("household_id")
+      .equals(householdId)
+      .filter((category) => !category.archived_at)
+      .toArray();
+  const { data, error } = await supabase
+    .from("categories")
+    .select("*")
+    .eq("household_id", householdId)
+    .is("archived_at", null)
+    .order("name");
+  if (error) throw error;
+  await offlineDb.categories.bulkPut(data);
+  return data;
+}
+
+export async function createCategory(
+  input: Pick<Category, "household_id" | "name" | "kind" | "color">,
+): Promise<Category> {
+  if (!navigator.onLine || !supabase)
+    throw new Error("Conéctate a internet para crear categorías.");
+  const { data, error } = await supabase
+    .from("categories")
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  await offlineDb.categories.put(data);
+  return data;
+}
+
+export async function archiveCategory(id: string): Promise<void> {
+  if (!navigator.onLine || !supabase)
+    throw new Error("Conéctate a internet para archivar categorías.");
+  const archived_at = new Date().toISOString();
+  const { error } = await supabase
+    .from("categories")
+    .update({ archived_at })
+    .eq("id", id);
+  if (error) throw error;
+  await offlineDb.categories.update(id, { archived_at });
+}
 export async function saveTransaction(
   input: Omit<Transaction, "created_at" | "updated_at" | "deleted_at">,
 ) {
@@ -55,6 +100,48 @@ export async function saveTransaction(
   }
   await offlineDb.transactions.put(data);
   return data;
+}
+
+export async function updateTransaction(
+  existing: Transaction,
+  input: Pick<
+    Transaction,
+    "kind" | "scope" | "category_id" | "amount_cents" | "occurred_on" | "note"
+  >,
+): Promise<Transaction> {
+  const record: Transaction = {
+    ...existing,
+    ...input,
+    updated_at: new Date().toISOString(),
+  };
+  if (!navigator.onLine || !supabase) {
+    await queueTransaction(record, "upsert");
+    return record;
+  }
+  const { data, error } = await supabase
+    .from("transactions")
+    .update(input)
+    .eq("id", existing.id)
+    .select()
+    .single();
+  if (error) throw error;
+  await offlineDb.transactions.put(data);
+  return data;
+}
+
+export async function deleteTransaction(existing: Transaction): Promise<void> {
+  const deleted_at = new Date().toISOString();
+  const record = { ...existing, deleted_at, updated_at: deleted_at };
+  if (!navigator.onLine || !supabase) {
+    await queueTransaction(record, "delete");
+    return;
+  }
+  const { error } = await supabase
+    .from("transactions")
+    .update({ deleted_at })
+    .eq("id", existing.id);
+  if (error) throw error;
+  await offlineDb.transactions.put(record);
 }
 export async function syncPending(session: Session | null) {
   if (!session || !supabase || !navigator.onLine) return;

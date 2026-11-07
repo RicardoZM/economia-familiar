@@ -2,13 +2,26 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, missingConfiguration, supabase } from "./lib/supabase";
 import {
+  archiveCategory,
+  createCategory,
+  deleteTransaction,
+  fetchCategories,
   fetchTransactions,
   loadMyHousehold,
   saveTransaction,
   syncPending,
+  updateTransaction,
 } from "./lib/data";
 import { euros, monthKey, monthTotals, plannedBalance } from "./lib/finance";
-import type { Debt, Household, Page, Transaction } from "./types";
+import type {
+  Category,
+  Debt,
+  Household,
+  Kind,
+  Page,
+  Scope,
+  Transaction,
+} from "./types";
 
 const demoDebts: Debt[] = [];
 const nav: Array<[Page, string]> = [
@@ -25,6 +38,7 @@ export default function App() {
     [household, setHousehold] = useState<Household | null>(null),
     [page, setPage] = useState<Page>("inicio"),
     [items, setItems] = useState<Transaction[]>([]),
+    [categories, setCategories] = useState<Category[]>([]),
     [error, setError] = useState("");
   useEffect(() => {
     if (!supabase) return;
@@ -37,6 +51,7 @@ export default function App() {
   useEffect(() => {
     if (!session) {
       setHousehold(null);
+      setCategories([]);
       return;
     }
     loadMyHousehold()
@@ -47,6 +62,9 @@ export default function App() {
     if (!household) return;
     fetchTransactions(household.id)
       .then(setItems)
+      .catch((e) => setError(e.message));
+    fetchCategories(household.id)
+      .then(setCategories)
       .catch((e) => setError(e.message));
     const sync = () => syncPending(session);
     window.addEventListener("online", sync);
@@ -131,11 +149,31 @@ export default function App() {
             household={household}
             userId={session.user.id}
             items={items}
+            categories={categories}
             onSaved={(x) =>
               setItems((current) => [
                 x,
                 ...current.filter((i) => i.id !== x.id),
               ])
+            }
+            onDeleted={(id) =>
+              setItems((current) =>
+                current.map((item) =>
+                  item.id === id
+                    ? { ...item, deleted_at: new Date().toISOString() }
+                    : item,
+                ),
+              )
+            }
+            onCategoryCreated={(category) =>
+              setCategories((current) =>
+                [...current, category].sort((a, b) =>
+                  a.name.localeCompare(b.name, "es"),
+                ),
+              )
+            }
+            onCategoryArchived={(id) =>
+              setCategories((current) => current.filter((x) => x.id !== id))
             }
           />
         )}
@@ -387,54 +425,173 @@ function Transactions({
   household,
   userId,
   items,
+  categories,
   onSaved,
+  onDeleted,
+  onCategoryCreated,
+  onCategoryArchived,
 }: {
   household: Household;
   userId: string;
   items: Transaction[];
+  categories: Category[];
   onSaved: (x: Transaction) => void;
+  onDeleted: (id: string) => void;
+  onCategoryCreated: (category: Category) => void;
+  onCategoryArchived: (id: string) => void;
 }) {
-  const [kind, setKind] = useState<"income" | "expense">("expense"),
-    [scope, setScope] = useState<"shared" | "personal">("shared"),
+  const [kind, setKind] = useState<Kind>("expense"),
+    [scope, setScope] = useState<Scope>("shared"),
     [amount, setAmount] = useState(""),
     [note, setNote] = useState(""),
     [date, setDate] = useState(new Date().toISOString().slice(0, 10)),
-    [message, setMessage] = useState("");
+    [categoryId, setCategoryId] = useState(""),
+    [editing, setEditing] = useState<Transaction | null>(null),
+    [message, setMessage] = useState(""),
+    [month, setMonth] = useState(monthKey()),
+    [kindFilter, setKindFilter] = useState<Kind | "all">("all"),
+    [scopeFilter, setScopeFilter] = useState<Scope | "all">("all"),
+    [categoryFilter, setCategoryFilter] = useState("all"),
+    [categoryName, setCategoryName] = useState(""),
+    [categoryKind, setCategoryKind] = useState<Kind>("expense"),
+    [categoryMessage, setCategoryMessage] = useState("");
+  const availableCategories = categories.filter((category) => category.kind === kind);
+  const visibleItems = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          !item.deleted_at &&
+          item.occurred_on.startsWith(month) &&
+          (kindFilter === "all" || item.kind === kindFilter) &&
+          (scopeFilter === "all" || item.scope === scopeFilter) &&
+          (categoryFilter === "all" || item.category_id === categoryFilter),
+      ),
+    [items, month, kindFilter, scopeFilter, categoryFilter],
+  );
+  const resetForm = () => {
+    setKind("expense");
+    setScope("shared");
+    setAmount("");
+    setNote("");
+    setDate(new Date().toISOString().slice(0, 10));
+    setCategoryId("");
+    setEditing(null);
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const cents = Math.round(Number(amount.replace(",", ".")) * 100);
     if (!Number.isSafeInteger(cents) || cents <= 0)
       return setMessage("Indica un importe válido.");
-    const saved = await saveTransaction({
-      id: crypto.randomUUID(),
-      household_id: household.id,
-      user_id: userId,
+    const input = {
       kind,
       scope,
-      category_id: null,
+      category_id: categoryId || null,
       amount_cents: cents,
       occurred_on: date,
       note,
-    });
-    onSaved(saved);
-    setAmount("");
-    setNote("");
-    setMessage(
-      navigator.onLine
-        ? "Movimiento guardado."
-        : "Guardado en este dispositivo; se enviará al reconectar.",
-    );
+    };
+    try {
+      const saved = editing
+        ? await updateTransaction(editing, input)
+        : await saveTransaction({
+            id: crypto.randomUUID(),
+            household_id: household.id,
+            user_id: userId,
+            ...input,
+          });
+      onSaved(saved);
+      resetForm();
+      setMessage(
+        navigator.onLine
+          ? editing
+            ? "Movimiento actualizado."
+            : "Movimiento guardado."
+          : "Guardado en este dispositivo; se enviará al reconectar.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar.");
+    }
+  };
+  const edit = (item: Transaction) => {
+    setEditing(item);
+    setKind(item.kind);
+    setScope(item.scope);
+    setAmount((item.amount_cents / 100).toFixed(2).replace(".", ","));
+    setNote(item.note ?? "");
+    setDate(item.occurred_on);
+    setCategoryId(item.category_id ?? "");
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const remove = async (item: Transaction) => {
+    if (!window.confirm(`¿Eliminar “${item.note || "este movimiento"}”?`)) return;
+    try {
+      await deleteTransaction(item);
+      onDeleted(item.id);
+      if (editing?.id === item.id) resetForm();
+      setMessage(
+        navigator.onLine
+          ? "Movimiento eliminado."
+          : "Eliminado en este dispositivo; se sincronizará al reconectar.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo eliminar.");
+    }
+  };
+  const addCategory = async (e: FormEvent) => {
+    e.preventDefault();
+    const name = categoryName.trim();
+    if (!name) return;
+    try {
+      const category = await createCategory({
+        household_id: household.id,
+        name,
+        kind: categoryKind,
+        color: categoryKind === "income" ? "#08754d" : "#b24c3c",
+      });
+      onCategoryCreated(category);
+      setCategoryName("");
+      setCategoryMessage("Categoría creada.");
+    } catch (error) {
+      setCategoryMessage(
+        error instanceof Error ? error.message : "No se pudo crear la categoría.",
+      );
+    }
+  };
+  const archive = async (category: Category) => {
+    if (!window.confirm(`¿Archivar la categoría “${category.name}”?`)) return;
+    try {
+      await archiveCategory(category.id);
+      onCategoryArchived(category.id);
+      if (categoryId === category.id) setCategoryId("");
+      if (categoryFilter === category.id) setCategoryFilter("all");
+      setCategoryMessage("Categoría archivada. Los movimientos existentes no cambian.");
+    } catch (error) {
+      setCategoryMessage(
+        error instanceof Error ? error.message : "No se pudo archivar la categoría.",
+      );
+    }
   };
   return (
     <>
       <form className="panel form" onSubmit={submit}>
-        <h2>Nuevo movimiento</h2>
+        <div className="panel-heading">
+          <h2>{editing ? "Editar movimiento" : "Nuevo movimiento"}</h2>
+          {editing && (
+            <button type="button" className="secondary" onClick={resetForm}>
+              Cancelar edición
+            </button>
+          )}
+        </div>
         <div className="fields">
           <label>
             Tipo
             <select
               value={kind}
-              onChange={(e) => setKind(e.target.value as typeof kind)}
+              onChange={(e) => {
+                setKind(e.target.value as Kind);
+                setCategoryId("");
+              }}
             >
               <option value="expense">Gasto</option>
               <option value="income">Ingreso</option>
@@ -444,10 +601,21 @@ function Transactions({
             Ámbito
             <select
               value={scope}
-              onChange={(e) => setScope(e.target.value as typeof scope)}
+              onChange={(e) => setScope(e.target.value as Scope)}
             >
               <option value="shared">Común</option>
               <option value="personal">Personal</option>
+            </select>
+          </label>
+          <label>
+            Categoría
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              <option value="">Sin categoría</option>
+              {availableCategories.map((category) => (
+                <option value={category.id} key={category.id}>
+                  {category.name}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -476,27 +644,111 @@ function Transactions({
             onChange={(e) => setNote(e.target.value)}
           />
         </label>
-        <button className="primary">Guardar</button>
+        <button className="primary">{editing ? "Guardar cambios" : "Guardar"}</button>
         {message && <p className="muted">{message}</p>}
       </form>
       <section className="panel">
-        <h2>Todos los movimientos</h2>
-        {items
-          .filter((x) => !x.deleted_at)
-          .map((x) => (
+        <h2>Movimientos</h2>
+        <div className="filters">
+          <label>
+            Mes
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          </label>
+          <label>
+            Tipo
+            <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as Kind | "all")}>
+              <option value="all">Todos</option>
+              <option value="expense">Gastos</option>
+              <option value="income">Ingresos</option>
+            </select>
+          </label>
+          <label>
+            Ámbito
+            <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as Scope | "all")}>
+              <option value="all">Todos</option>
+              <option value="shared">Común</option>
+              <option value="personal">Personal</option>
+            </select>
+          </label>
+          <label>
+            Categoría
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              <option value="all">Todas</option>
+              {categories.map((category) => (
+                <option value={category.id} key={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {visibleItems.map((x) => (
             <div className="row" key={x.id}>
               <span>
                 <b>{x.note || "Sin descripción"}</b>
                 <small>
-                  {x.occurred_on} · {x.scope}
+                  {x.occurred_on} · {x.scope === "shared" ? "Común" : "Personal"}
+                  {x.category_id &&
+                    ` · ${categories.find((category) => category.id === x.category_id)?.name ?? "Categoría archivada"}`}
                 </small>
               </span>
-              <strong className={x.kind}>
-                {x.kind === "income" ? "+" : "-"}
-                {euros(x.amount_cents)}
-              </strong>
+              <div className="row-actions">
+                <strong className={x.kind}>
+                  {x.kind === "income" ? "+" : "-"}
+                  {euros(x.amount_cents)}
+                </strong>
+                {x.user_id === userId && (
+                  <span>
+                    <button type="button" className="text-button" onClick={() => edit(x)}>
+                      Editar
+                    </button>
+                    <button type="button" className="text-button danger" onClick={() => remove(x)}>
+                      Eliminar
+                    </button>
+                  </span>
+                )}
+              </div>
             </div>
           ))}
+        {visibleItems.length === 0 && (
+          <p className="muted">No hay movimientos que coincidan con los filtros.</p>
+        )}
+      </section>
+      <section className="panel">
+        <h2>Categorías</h2>
+        <form className="category-form" onSubmit={addCategory}>
+          <input
+            aria-label="Nombre de categoría"
+            placeholder="Ej. Alimentación"
+            value={categoryName}
+            onChange={(e) => setCategoryName(e.target.value)}
+            maxLength={80}
+            required
+          />
+          <select value={categoryKind} onChange={(e) => setCategoryKind(e.target.value as Kind)}>
+            <option value="expense">Gasto</option>
+            <option value="income">Ingreso</option>
+          </select>
+          <button className="primary">Añadir categoría</button>
+        </form>
+        {categories.length === 0 ? (
+          <p className="muted">Aún no hay categorías. Puedes añadirlas cuando las necesites.</p>
+        ) : (
+          <div className="category-list">
+            {categories.map((category) => (
+              <div className="category" key={category.id}>
+                <span>
+                  <i style={{ backgroundColor: category.color }} />
+                  {category.name} · {category.kind === "income" ? "Ingreso" : "Gasto"}
+                </span>
+                <button type="button" className="text-button danger" onClick={() => archive(category)}>
+                  Archivar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {categoryMessage && <p className="muted">{categoryMessage}</p>}
       </section>
     </>
   );

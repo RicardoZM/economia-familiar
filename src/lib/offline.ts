@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Transaction } from "../types";
+import type { Category, Transaction } from "../types";
 
 interface PendingChange {
   id?: number;
@@ -10,11 +10,17 @@ interface PendingChange {
 }
 class FamilyDb extends Dexie {
   transactions!: EntityTable<Transaction, "id">;
+  categories!: EntityTable<Category, "id">;
   pending!: EntityTable<PendingChange, "id">;
   constructor() {
     super("economia-familiar");
     this.version(1).stores({
       transactions: "id, household_id, occurred_on, updated_at",
+      pending: "++id, createdAt",
+    });
+    this.version(2).stores({
+      transactions: "id, household_id, occurred_on, updated_at",
+      categories: "id, household_id, kind, archived_at",
       pending: "++id, createdAt",
     });
   }
