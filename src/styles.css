@@ -319,12 +319,17 @@ select {
     }
 
     .brand,
-    .house,
-    .signout {
+    .house {
         display: none
     }
 
     .nav {
+        white-space: nowrap
+    }
+
+    .signout {
+        display: block;
+        margin-top: 0;
         white-space: nowrap
     }
 
