@@ -3,6 +3,7 @@ import { deleteBudget, fetchBudgets, saveBudget } from "../lib/data";
 import { euros, monthKey } from "../lib/finance";
 import type { Budget, Category, Household, Transaction } from "../types";
 import { fieldClassName, Panel, PrimaryButton, TextButton } from "./ui";
+import {Save, Trash} from 'lucide-react';
 
 type BudgetsProps = {
   household: Household;
@@ -104,8 +105,8 @@ function BudgetRow({
           onChange={(event) => setAmount(event.target.value)}
           required
         />
-        <PrimaryButton className="shrink-0" type="submit">Guardar</PrimaryButton>
-        {budget && <TextButton className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={remove}>Eliminar</TextButton>}
+        <PrimaryButton className="shrink-0" type="submit"><Save /></PrimaryButton>
+        {budget && <TextButton className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={remove}><Trash/></TextButton>}
       </form>
       {message && <p className="mt-2 text-sm text-slate-500">{message}</p>}
     </article>

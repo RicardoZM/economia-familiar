@@ -9,6 +9,7 @@ import {
 import { euros } from "../lib/finance";
 import type { Debt, DebtPayment, Household, Scope } from "../types";
 import { fieldClassName, Panel, PrimaryButton, TextButton } from "./ui";
+import { Archive } from 'lucide-react'
 
 function centsFromInput(value: string) {
   return Math.round(Number(value.replace(",", ".")) * 100);
@@ -81,7 +82,7 @@ function DebtCard({
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0"><h3 className="truncate text-lg font-bold text-slate-900">{debt.name}</h3><p className="mt-1 text-sm text-slate-500">{debt.scope === "shared" ? "Deuda común" : "Deuda personal"} · Vence el {displayDate(debt.due_on)}</p></div>
-        <TextButton className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={archive}>Archivar</TextButton>
+        <TextButton className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={archive}><Archive /></TextButton>
       </div>
       <div className="mt-5 flex items-end justify-between gap-3">
         <div><strong className="text-2xl tracking-tight text-brand-700">{euros(pending)}</strong><span className="text-slate-500"> pendiente</span></div>

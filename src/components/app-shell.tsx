@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from "react";
 import type { Page } from "../types";
 import { Logo, PrimaryButton, TextButton } from "./ui";
-
+import { Plus } from "lucide-react";
 const navigation: Array<[Page, string]> = [
   ["inicio", "Inicio"],
   ["movimientos", "Movimientos"],
@@ -72,7 +72,7 @@ export function AppShell({
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{title}</h1>
           </div>
           <PrimaryButton className="shrink-0" onClick={() => onPageChange("movimientos")}>
-            + Movimiento
+            <Plus /> Movimiento
           </PrimaryButton>
         </header>
         {children}

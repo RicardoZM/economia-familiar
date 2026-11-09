@@ -9,7 +9,7 @@ import {
 import { euros } from "../lib/finance";
 import type { Goal, GoalContribution, Household } from "../types";
 import { fieldClassName, Panel, PrimaryButton, TextButton } from "./ui";
-
+import {Archive  } from 'lucide-react'
 function centsFromInput(value: string) {
   return Math.round(Number(value.replace(",", ".")) * 100);
 }
@@ -82,7 +82,7 @@ function GoalCard({
           <p className="mt-1 text-sm text-slate-500">{formattedDate(goal.target_date)}</p>
         </div>
         <TextButton className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={archive}>
-          Archivar
+          <Archive />
         </TextButton>
       </div>
       <div className="mt-5 flex items-end justify-between gap-3">
