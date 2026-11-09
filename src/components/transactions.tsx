@@ -3,6 +3,7 @@ import { archiveCategory, createCategory, deleteTransaction, saveTransaction, up
 import { euros, monthKey } from "../lib/finance";
 import type { Category, Household, Kind, Scope, Transaction } from "../types";
 import { fieldClassName, Panel, PrimaryButton, TextButton } from "./ui";
+import {Trash } from 'lucide-react'
 
 type TransactionsProps = {
   household: Household;
@@ -156,7 +157,7 @@ export function Transactions({ household, userId, items, categories, onSaved, on
                 </span>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <strong className={item.kind === "income" ? "text-emerald-700" : "text-rose-700"}>{item.kind === "income" ? "+" : "-"}{euros(item.amount_cents)}</strong>
-                  {item.user_id === userId && <span className="flex gap-1"><TextButton type="button" onClick={() => edit(item)}>Editar</TextButton><TextButton className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={() => remove(item)}>Eliminar</TextButton></span>}
+                  {item.user_id === userId && <span className="flex gap-1"><TextButton type="button" onClick={() => edit(item)}>Editar</TextButton><TextButton className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={() => remove(item)}><Trash /></TextButton></span>}
                 </div>
               </div>
             );

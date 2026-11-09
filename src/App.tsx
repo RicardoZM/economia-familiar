@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AppShell } from "./components/app-shell";
 import { Auth, HouseholdSetup, Setup } from "./components/auth-views";
-import { EmptyState, Settings } from "./components/content-states";
+import { Budgets } from "./components/budgets";
+import { Settings } from "./components/content-states";
 import { Dashboard } from "./components/dashboard";
+import { Debts } from "./components/debts";
+import { Goals } from "./components/goals";
 import { Transactions } from "./components/transactions";
 import { configured, supabase } from "./lib/supabase";
-import { fetchCategories, fetchTransactions, loadMyHousehold, syncPending } from "./lib/data";
-import { euros, monthKey, monthTotals } from "./lib/finance";
+import { fetchCategories, fetchDebts, fetchTransactions, loadMyHousehold, syncPending } from "./lib/data";
+import { monthKey, monthTotals } from "./lib/finance";
 import type { Category, Debt, Household, Page, Transaction } from "./types";
-
-const demoDebts: Debt[] = [];
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -18,6 +19,7 @@ export default function App() {
   const [page, setPage] = useState<Page>("inicio");
   const [items, setItems] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function App() {
     if (!session) {
       setHousehold(null);
       setCategories([]);
+      setDebts([]);
       return;
     }
     loadMyHousehold().then(setHousehold).catch((reason: Error) => setError(reason.message));
@@ -40,6 +43,7 @@ export default function App() {
     if (!household) return;
     fetchTransactions(household.id).then(setItems).catch((reason: Error) => setError(reason.message));
     fetchCategories(household.id).then(setCategories).catch((reason: Error) => setError(reason.message));
+    fetchDebts(household.id).then(setDebts).catch((reason: Error) => setError(reason.message));
     const sync = () => syncPending(session);
     window.addEventListener("online", sync);
     return () => window.removeEventListener("online", sync);
@@ -60,6 +64,9 @@ export default function App() {
     link.click();
     URL.revokeObjectURL(url);
   };
+  const refreshDebts = () => {
+    fetchDebts(household.id).then(setDebts).catch((reason: Error) => setError(reason.message));
+  };
 
   return (
     <AppShell
@@ -71,7 +78,7 @@ export default function App() {
       onSignOut={() => supabase?.auth.signOut()}
     >
       {error && <p className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-      {page === "inicio" && <Dashboard items={items} debts={demoDebts} income={totals.income} expense={totals.expense} />}
+      {page === "inicio" && <Dashboard items={items} debts={debts} income={totals.income} expense={totals.expense} />}
       {page === "movimientos" && (
         <Transactions
           household={household}
@@ -84,9 +91,9 @@ export default function App() {
           onCategoryArchived={(id) => setCategories((current) => current.filter((category) => category.id !== id))}
         />
       )}
-      {page === "presupuestos" && <EmptyState title="Presupuestos por categoría" text="La estructura segura está creada en la base de datos. La gestión visual de límites mensuales es la siguiente pantalla a completar." />}
-      {page === "objetivos" && <EmptyState title="Objetivos de ahorro" text="Puedes crear objetivos y progreso desde la tabla goals. La interfaz de alta y aportaciones queda pendiente de una segunda iteración." />}
-      {page === "deudas" && <EmptyState title="Deudas y pagos futuros" text={`La previsión actual descuenta ${euros(demoDebts.reduce((total, debt) => total + debt.amount_cents - debt.paid_cents, 0))} de deudas pendientes.`} />}
+      {page === "presupuestos" && <Budgets household={household} categories={categories} items={items} />}
+      {page === "objetivos" && <Goals household={household} userId={session.user.id} />}
+      {page === "deudas" && <Debts household={household} userId={session.user.id} onChanged={refreshDebts} />}
       {page === "ajustes" && <Settings household={household} />}
     </AppShell>
   );
